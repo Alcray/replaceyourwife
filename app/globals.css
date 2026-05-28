@@ -1,0 +1,293 @@
+:root {
+  color-scheme: dark;
+  --bg: #070708;
+  --text: #f4f1ec;
+  --muted: rgba(244, 241, 236, 0.54);
+  --panel: rgba(255, 255, 255, 0.075);
+  --panel-strong: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.12);
+  --warm: rgba(168, 57, 29, 0.28);
+  --cool: rgba(30, 72, 167, 0.26);
+  --ask: #a58b8d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 8% 2%, var(--warm), transparent 28rem),
+    radial-gradient(circle at 88% 4%, var(--cool), transparent 30rem),
+    linear-gradient(180deg, #101014 0%, var(--bg) 56%);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+.page {
+  width: min(920px, calc(100vw - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(44px, 9vh, 82px) 0 56px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(3.1rem, 9vw, 6.2rem);
+  font-weight: 900;
+  line-height: 0.88;
+  letter-spacing: -0.095em;
+  text-shadow: 0 16px 70px rgba(255, 255, 255, 0.08);
+}
+
+.subtitle {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 0.98rem;
+}
+
+.promptShell {
+  width: min(720px, 100%);
+  margin: 22px auto 0;
+}
+
+.tabs,
+.chips,
+.modeLine,
+.sources {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tabs {
+  margin-bottom: 16px;
+}
+
+.tabs button,
+.chips button,
+.modeLine button,
+.sources span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: rgba(244, 241, 236, 0.78);
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.tabs button {
+  min-width: 74px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tabs button.active {
+  color: #181514;
+  background: var(--text);
+}
+
+.promptBar {
+  display: grid;
+  grid-template-columns: 1fr 46px 72px;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--panel);
+  backdrop-filter: blur(18px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 26px 90px rgba(0, 0, 0, 0.34);
+}
+
+.promptBar input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0 16px;
+  color: var(--text);
+  outline: none;
+  background: rgba(0, 0, 0, 0.34);
+}
+
+.promptBar input::placeholder,
+.noteInput::placeholder {
+  color: rgba(244, 241, 236, 0.36);
+}
+
+.fileInput {
+  display: none;
+}
+
+.iconButton,
+.askButton {
+  height: 46px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.iconButton {
+  color: #151312;
+  background: var(--text);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.askButton {
+  color: #1d1618;
+  background: var(--ask);
+}
+
+.askButton:disabled,
+.iconButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.noteInput {
+  width: min(520px, 100%);
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 12px 16px;
+  color: var(--text);
+  outline: none;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.chips {
+  margin-top: 12px;
+}
+
+.chips button,
+.modeLine button {
+  padding: 8px 12px;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.modeLine {
+  margin-top: 16px;
+}
+
+.modeLine button {
+  color: rgba(244, 241, 236, 0.5);
+}
+
+.modeLine button.active {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.22);
+  background: var(--panel-strong);
+}
+
+.historyCard {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+  text-align: left;
+}
+
+.messages {
+  max-height: min(58vh, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.message {
+  width: min(86%, 680px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  padding: 13px 15px;
+  white-space: pre-wrap;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.message span {
+  display: block;
+  margin-bottom: 7px;
+  color: rgba(244, 241, 236, 0.46);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.message p {
+  margin: 0;
+  color: rgba(244, 241, 236, 0.88);
+  line-height: 1.55;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.message.system {
+  border-color: rgba(255, 122, 144, 0.35);
+}
+
+.sources {
+  justify-content: flex-start;
+  padding: 0 16px 16px;
+}
+
+.sources span {
+  padding: 7px 10px;
+  color: rgba(244, 241, 236, 0.58);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 640px) {
+  .page {
+    width: min(100vw - 20px, 920px);
+    padding-top: 42px;
+  }
+
+  .promptBar {
+    grid-template-columns: 1fr 42px 64px;
+    padding: 9px;
+  }
+
+  .promptBar input,
+  .iconButton,
+  .askButton {
+    min-height: 42px;
+    height: 42px;
+  }
+
+  .message {
+    width: 100%;
+  }
+}
