@@ -254,45 +254,49 @@ export function ChatShell() {
             />
           )}
 
-          <div className="xtraceControl" aria-label="XTrace memory toggle">
-            <span>XTrace</span>
-            <button
-              type="button"
-              className={useXtrace ? 'active' : ''}
-              onClick={() => {
-                setUseXtrace(true);
-                setActive({
-                  id: newId(),
-                  title: 'XTrace memory turned ON',
-                  mode: 'ask',
-                  results: 0,
-                  usedMemory: true,
-                  answer: 'Memory retrieval is ON. Ask the same question again and the agent will search XTrace first.',
-                  sources: []
-                });
-              }}
-            >
-              ON
-            </button>
-            <button
-              type="button"
-              className={!useXtrace ? 'active off' : ''}
-              onClick={() => {
-                setUseXtrace(false);
-                setActive({
-                  id: newId(),
-                  title: 'XTrace memory turned OFF',
-                  mode: 'ask',
-                  results: 0,
-                  usedMemory: false,
-                  answer: 'Memory retrieval is OFF. Ask a known home question now and it should say it does not know.',
-                  sources: []
-                });
-              }}
-            >
-              OFF
-            </button>
-          </div>
+          {tab === 'ask' ? (
+            <div className="xtraceControl" aria-label="XTrace memory toggle">
+              <span>XTrace</span>
+              <button
+                type="button"
+                className={useXtrace ? 'active' : ''}
+                onClick={() => {
+                  setUseXtrace(true);
+                  setActive({
+                    id: newId(),
+                    title: 'XTrace memory turned ON',
+                    mode: 'ask',
+                    results: 0,
+                    usedMemory: true,
+                    answer: 'Memory retrieval is ON. Ask the same question again and the agent will search XTrace first.',
+                    sources: []
+                  });
+                }}
+              >
+                ON
+              </button>
+              <button
+                type="button"
+                className={!useXtrace ? 'active off' : ''}
+                onClick={() => {
+                  setUseXtrace(false);
+                  setActive({
+                    id: newId(),
+                    title: 'XTrace memory turned OFF',
+                    mode: 'ask',
+                    results: 0,
+                    usedMemory: false,
+                    answer: 'Memory retrieval is OFF. Ask a known home question now and it should say it does not know.',
+                    sources: []
+                  });
+                }}
+              >
+                OFF
+              </button>
+            </div>
+          ) : (
+            <div className="captureHint">Capture always saves to XTrace</div>
+          )}
         </div>
 
         {tab === 'ask' && (
