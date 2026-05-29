@@ -23,6 +23,11 @@ async function main() {
       path: path.join(DEMO_DIR, 'patient-medical-record.md'),
       sourceName: 'ACME Hospital patient medical record',
       notes: 'Demo medical record from supplied screenshots.'
+    },
+    {
+      path: path.join(DEMO_DIR, 'wifi-fix-may-28.md'),
+      sourceName: 'Home Wi-Fi fix log (May 28)',
+      notes: 'Personal repair log for how home Wi-Fi was fixed.'
     }
   ];
 

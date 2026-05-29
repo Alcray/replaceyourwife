@@ -2,16 +2,23 @@
 
 import { FormEvent, useRef, useState } from 'react';
 
-type Mode = 'capture' | 'retrieve';
+type Tab = 'ask' | 'capture';
 
-type Message = {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
+type HistoryItem = {
+  id: string;
+  title: string;
+  mode: Tab;
+  results: number;
+  usedMemory: boolean;
+  answer: string;
+  sources: string[];
+  pending?: boolean;
 };
 
 type ChatResponse = {
   answer?: string;
   error?: string;
+  usedMemory?: boolean;
   memories?: Array<{
     id: string;
     text: string;
@@ -19,214 +26,326 @@ type ChatResponse = {
   }>;
 };
 
+type CaptureResponse = {
+  results?: Array<{ sourceName: string; memoriesCreated: number }>;
+  error?: string;
+};
+
+const ASK_EXAMPLES = [
+  'How do I fix the home Wi-Fi?',
+  'How do I reset the Aroma kettle?',
+  'What is Vernice Moorhouse not immune to?',
+  'Who is my dentist?'
+];
+
+function newId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
 export function ChatShell() {
-  const [mode, setMode] = useState<Mode>('retrieve');
-  const [tab, setTab] = useState<'prompt' | 'history'>('prompt');
+  const [tab, setTab] = useState<Tab>('ask');
+  const [useXtrace, setUseXtrace] = useState(true);
   const [input, setInput] = useState('');
   const [notes, setNotes] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Ask what your home remembers, or capture something new.'
-    }
-  ]);
   const [loading, setLoading] = useState(false);
-  const [sources, setSources] = useState<string[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [active, setActive] = useState<HistoryItem | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  async function submitChat(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!input.trim() || loading) return;
-
-    const userText = input.trim();
-    setInput('');
+  async function runAsk(question: string) {
+    if (loading) return;
+    const memoryEnabled = useXtrace;
+    const pendingItem: HistoryItem = {
+      id: newId(),
+      title: question,
+      mode: 'ask',
+      results: 0,
+      usedMemory: memoryEnabled,
+      answer: memoryEnabled ? 'Asking with XTrace memory ON...' : 'XTrace memory is OFF. The agent will answer only if it already knows without memory.',
+      sources: [],
+      pending: true
+    };
     setLoading(true);
-    setMessages((current) => [...current, { role: 'user', content: userText }]);
-
+    setActive(pendingItem);
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, message: userText })
+        body: JSON.stringify({ mode: 'retrieve', message: question, useXtrace: memoryEnabled })
       });
       const payload = (await response.json()) as ChatResponse;
       if (!response.ok) throw new Error(payload.error ?? 'Request failed');
 
-      setSources(
-        payload.memories
-          ?.map((memory) => String(memory.metadata?.source_name ?? 'home memory'))
-          .filter(Boolean) ?? []
-      );
-      setMessages((current) => [
-        ...current,
-        { role: 'assistant', content: payload.answer ?? 'Done.' }
-      ]);
-      setTab('history');
+      const sources = [
+        ...new Set(
+          (payload.memories ?? [])
+            .map((memory) => String(memory.metadata?.source_name ?? ''))
+            .filter(Boolean)
+        )
+      ];
+
+      const item: HistoryItem = {
+        id: newId(),
+        title: question,
+        mode: 'ask',
+        results: payload.memories?.length ?? 0,
+        usedMemory: payload.usedMemory ?? memoryEnabled,
+        answer: payload.answer ?? 'Done.',
+        sources
+      };
+      setHistory((current) => [item, ...current]);
+      setActive(item);
+      setInput('');
     } catch (error) {
-      setMessages((current) => [
-        ...current,
-        {
-          role: 'system',
-          content: error instanceof Error ? error.message : 'Something went wrong'
-        }
-      ]);
+      const item: HistoryItem = {
+        id: newId(),
+        title: question,
+        mode: 'ask',
+        results: 0,
+        usedMemory: memoryEnabled,
+        answer: error instanceof Error ? error.message : 'Something went wrong',
+        sources: []
+      };
+      setHistory((current) => [item, ...current]);
+      setActive(item);
     } finally {
       setLoading(false);
     }
   }
 
-  async function submitFiles() {
+  async function runCapture(text: string, files: FileList | null) {
     if (loading) return;
-
-    const files = fileRef.current?.files;
-    if (!files?.length && !input.trim()) return;
-
-    const formData = new FormData();
-    formData.set('notes', notes);
-    if (input.trim()) formData.set('text', input.trim());
-    for (const file of Array.from(files ?? [])) formData.append('files', file);
+    if (!text.trim() && !files?.length) return;
 
     setLoading(true);
-    setMessages((current) => [
-      ...current,
-      { role: 'user', content: `Capture ${files?.length ?? 0} file(s)${input.trim() ? ' plus notes' : ''}.` }
-    ]);
-
     try {
-      const response = await fetch('/api/capture', { method: 'POST', body: formData });
-      const payload = (await response.json()) as {
-        results?: Array<{ sourceName: string; memoriesCreated: number }>;
-        error?: string;
-      };
-      if (!response.ok) throw new Error(payload.error ?? 'Capture failed');
+      let summary: string;
+      let count = 0;
 
-      const summary =
-        payload.results
-          ?.map((result) => `${result.sourceName}: ${result.memoriesCreated} memories`)
-          .join('\n') ?? 'Captured.';
-      setMessages((current) => [...current, { role: 'assistant', content: summary }]);
-      setTab('history');
+      if (files?.length) {
+        const formData = new FormData();
+        formData.set('notes', notes);
+        if (text.trim()) formData.set('text', text.trim());
+        for (const file of Array.from(files)) formData.append('files', file);
+
+        const response = await fetch('/api/capture', { method: 'POST', body: formData });
+        const payload = (await response.json()) as CaptureResponse;
+        if (!response.ok) throw new Error(payload.error ?? 'Capture failed');
+
+        count = payload.results?.reduce((sum, r) => sum + r.memoriesCreated, 0) ?? 0;
+        summary =
+          payload.results
+            ?.map((r) => `${r.sourceName}: ${r.memoriesCreated} memories`)
+            .join('\n') ?? 'Captured.';
+      } else {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'capture',
+            message: text.trim(),
+            sourceName: notes.trim() || 'quick-capture'
+          })
+        });
+        const payload = (await response.json()) as ChatResponse;
+        if (!response.ok) throw new Error(payload.error ?? 'Capture failed');
+        summary = payload.answer ?? 'Captured.';
+      }
+
+      const item: HistoryItem = {
+        id: newId(),
+        title: notes.trim() || text.trim().slice(0, 60) || 'Captured files',
+        mode: 'capture',
+        results: count,
+        usedMemory: true,
+        answer: summary,
+        sources: []
+      };
+      setHistory((current) => [item, ...current]);
+      setActive(item);
       setInput('');
       setNotes('');
       if (fileRef.current) fileRef.current.value = '';
     } catch (error) {
-      setMessages((current) => [
-        ...current,
-        {
-          role: 'system',
-          content: error instanceof Error ? error.message : 'Capture failed'
-        }
-      ]);
+      const item: HistoryItem = {
+        id: newId(),
+        title: notes.trim() || text.trim().slice(0, 60) || 'Capture',
+        mode: 'capture',
+        results: 0,
+        usedMemory: true,
+        answer: error instanceof Error ? error.message : 'Capture failed',
+        sources: []
+      };
+      setHistory((current) => [item, ...current]);
+      setActive(item);
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    <section className="promptShell">
-      <div className="tabs" aria-label="View">
-        <button className={tab === 'prompt' ? 'active' : ''} onClick={() => setTab('prompt')}>
-          Prompt
-        </button>
-        <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>
-          History
-        </button>
-      </div>
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (tab === 'ask') {
+      if (!input.trim()) return;
+      void runAsk(input.trim());
+    } else {
+      void runCapture(input, fileRef.current?.files ?? null);
+    }
+  }
 
-      {tab === 'prompt' && (
-        <>
-          <form className="promptBar" onSubmit={submitChat}>
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder={
-                mode === 'capture'
-                  ? 'Paste a note, manual text, or reminder to remember'
-                  : 'Ask about a document, repair, reminder, or thing you forgot'
-              }
-            />
-            <input
-              ref={fileRef}
-              className="fileInput"
-              type="file"
-              multiple
-              onChange={() => {
-                setMode('capture');
-                void submitFiles();
-              }}
-            />
+  return (
+    <section className="shell">
+      <div className="controlCard">
+        <div className="tabs" aria-label="Mode">
+          <button className={tab === 'ask' ? 'active' : ''} onClick={() => setTab('ask')} type="button">
+            Ask
+          </button>
+          <button
+            className={tab === 'capture' ? 'active' : ''}
+            onClick={() => setTab('capture')}
+            type="button"
+          >
+            Capture
+          </button>
+        </div>
+
+        <form className="searchRow" onSubmit={onSubmit}>
+          <input
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder={
+              tab === 'ask'
+                ? 'Ask what your home remembers...'
+                : 'Paste a note, manual text, or reminder to remember...'
+            }
+          />
+          {tab === 'capture' && (
             <button
-              className="iconButton"
               type="button"
-              aria-label="Attach files"
+              className="attachButton"
               onClick={() => fileRef.current?.click()}
               disabled={loading}
             >
-              +
+              Files
             </button>
-            <button className="askButton" disabled={loading || !input.trim()}>
-              {loading ? '...' : mode === 'capture' ? 'Save' : 'Ask'}
-            </button>
-          </form>
+          )}
+          <button className="primaryButton" disabled={loading}>
+            {loading ? '...' : tab === 'ask' ? 'Ask' : 'Save'}
+          </button>
+          <input
+            ref={fileRef}
+            className="hiddenFile"
+            type="file"
+            multiple
+            onChange={() => {
+              setTab('capture');
+              void runCapture(input, fileRef.current?.files ?? null);
+            }}
+          />
+        </form>
 
-          {mode === 'capture' && (
+        <div className="optionRow">
+          {tab === 'capture' && (
             <input
               className="noteInput"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              placeholder="Optional source note, e.g. basement boiler manual"
+              placeholder="Optional source name, e.g. Wi-Fi fix"
             />
           )}
 
-          <div className="chips">
-            <button onClick={() => setInput('How do I reset the Aroma kettle if it does not heat?')}>
-              Kettle reset
-            </button>
-            <button onClick={() => setInput('What is Vernice Moorhouse not immune to?')}>
-              Medical record
-            </button>
+          <div className="xtraceControl" aria-label="XTrace memory toggle">
+            <span>XTrace</span>
             <button
+              type="button"
+              className={useXtrace ? 'active' : ''}
               onClick={() => {
-                setMode('capture');
-                setInput('Remember this: ');
+                setUseXtrace(true);
+                setActive({
+                  id: newId(),
+                  title: 'XTrace memory turned ON',
+                  mode: 'ask',
+                  results: 0,
+                  usedMemory: true,
+                  answer: 'Memory retrieval is ON. Ask the same question again and the agent will search XTrace first.',
+                  sources: []
+                });
               }}
             >
-              Capture note
+              ON
             </button>
-            <button onClick={() => setInput('What did I forget about the house?')}>I forgot</button>
+            <button
+              type="button"
+              className={!useXtrace ? 'active off' : ''}
+              onClick={() => {
+                setUseXtrace(false);
+                setActive({
+                  id: newId(),
+                  title: 'XTrace memory turned OFF',
+                  mode: 'ask',
+                  results: 0,
+                  usedMemory: false,
+                  answer: 'Memory retrieval is OFF. Ask a known home question now and it should say it does not know.',
+                  sources: []
+                });
+              }}
+            >
+              OFF
+            </button>
           </div>
+        </div>
 
-          <div className="modeLine">
-            <button className={mode === 'retrieve' ? 'active' : ''} onClick={() => setMode('retrieve')}>
-              Ask memory
-            </button>
-            <button className={mode === 'capture' ? 'active' : ''} onClick={() => setMode('capture')}>
-              Save memory
-            </button>
-          </div>
-        </>
-      )}
-
-      {tab === 'history' && (
-        <section className="historyCard">
-          <div className="messages">
-            {messages.map((message, index) => (
-              <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
-                <span>{message.role}</span>
-                <p>{message.content}</p>
-              </article>
+        {tab === 'ask' && (
+          <div className="chips">
+            {ASK_EXAMPLES.map((example) => (
+              <button key={example} type="button" onClick={() => setInput(example)}>
+                {example}
+              </button>
             ))}
           </div>
+        )}
+      </div>
 
-          {sources.length > 0 && (
-            <div className="sources">
-              {[...new Set(sources)].map((source) => (
+      {active && (
+        <article className={`answerCard ${active.results === 0 && active.mode === 'ask' && !active.pending ? 'empty' : ''} ${active.pending ? 'pending' : ''}`}>
+          <header>
+            <span className="badge">{active.mode}</span>
+            <span className="badge muted">{active.usedMemory ? 'XTrace ON' : 'XTrace OFF'}</span>
+            <span className="badge muted">{active.results} results</span>
+          </header>
+          <h3>{active.title}</h3>
+          <p>{active.answer}</p>
+          {active.sources.length > 0 && (
+            <div className="sourceTags">
+              {active.sources.map((source) => (
                 <span key={source}>{source}</span>
               ))}
             </div>
           )}
-        </section>
+        </article>
       )}
+
+      <section className="historySection">
+        <div className="historyHead">
+          <h2>History</h2>
+          <span>Recent searches</span>
+        </div>
+        {history.length === 0 ? (
+          <p className="emptyHistory">No searches yet. Ask something above.</p>
+        ) : (
+          <div className="historyGrid">
+            {history.map((item) => (
+              <button key={item.id} className="historyCard" type="button" onClick={() => setActive(item)}>
+                <strong>{item.title}</strong>
+                <div className="historyMeta">
+                  <span className="badge">{item.mode}</span>
+                  <span>{item.results} results</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
     </section>
   );
 }

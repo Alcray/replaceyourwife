@@ -9,6 +9,7 @@ type ChatBody = {
   mode?: 'capture' | 'retrieve';
   message?: string;
   sourceName?: string;
+  useXtrace?: boolean;
 };
 
 export async function POST(request: NextRequest) {
@@ -16,6 +17,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as ChatBody;
     const mode = body.mode ?? 'retrieve';
     const message = body.message?.trim();
+    const useXtrace = body.useXtrace ?? true;
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -30,11 +32,12 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         answer: `Captured ${result.memoriesCreated} memories from ${result.sourceName}.`,
-        memories: []
+        memories: [],
+        usedMemory: true
       });
     }
 
-    const result = await askHomeMemory(message);
+    const result = await askHomeMemory(message, { useMemory: useXtrace });
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error';
